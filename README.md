@@ -17,7 +17,7 @@ Configuration overview:
 all targets.
 - `vagrant.yaml` configuration specific to Vagrant (overrides values
 in `defaults.yaml`).
-- `aws.yaml` configuration specific to Vagrant (overrides values
+- `aws.yaml` configuration specific to AWS (overrides values
 in `defaults.yaml`).
 
 ## Run on Vagrant ##
