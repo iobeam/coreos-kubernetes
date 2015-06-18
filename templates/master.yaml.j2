@@ -1,0 +1,146 @@
+#cloud-config
+
+---
+users: {{ users }}
+ssh_authorized_keys: {{ ssh_authorized_keys }}
+
+write_files:
+  - path: /opt/bin/waiter.sh
+    owner: root
+    content: |
+      #! /usr/bin/bash
+      until curl http://127.0.0.1:2379/v2/machines; do sleep 2; done
+  {% if docker.registry -%}
+  - path: /.dockercfg
+    content: |
+      {
+        "https://{{ docker.registry }}": {
+          "auth": "{{ docker.registry_auth_token }}",
+          "email": "{{ docker.email }}"
+        }
+      }
+  {%- endif %}
+########################################################################    
+# Environment variables needed by Kubernetes Fleet unit files.
+########################################################################
+  - path: /etc/kubernetes/environment
+    owner: root
+    content: |
+      KUBERNETES_CLOUD_PROVIDER={{ kubernetes.cloud_provider }}
+      KUBERNETES_MASTER=true
+      KUBERNETES_MASTER_IP={{ kubernetes.master_ip }}
+      KUBERNETES_MASTER_INSECURE_PORT={{ kubernetes.insecure_port }}
+      KUBERNETES_MASTER_SECURE_PORT={{ kubernetes.secure_port }}      
+      KUBERNETES_API_SERVERS={{ kubernetes.api_servers }}
+      KUBERNETES_CLUSTER_DOMAIN={{ kubernetes.cluster_domain }}
+      KUBERNETES_CLUSTER_DNS={{ kubernetes.cluster_dns }}
+      KUBERNETES_SERVICE_CLUSTER_IP_RANGE={{ kubernetes.service_cluster_ip_range }}
+########################################################################    
+# Tokens for Kubernetes system services to authenticate with API server
+########################################################################
+  - path: /srv/kubernetes/known_tokens.csv
+    owner: root
+    content: |
+      {{ kubernetes.tokens.kubelet }},kubelet,kubelet
+      {{ kubernetes.tokens.kube_proxy }},kube_proxy,kube_proxy
+      {{ kubernetes.tokens.scheduler }},system:scheduler,system:scheduler
+      {{ kubernetes.tokens.controller_manager }},system:controller_manager,system:controller_manager
+      {{ kubernetes.tokens.logging }},system:logging,system:logging
+      {{ kubernetes.tokens.monitoring }},system:monitoring,system:monitoring
+      {{ kubernetes.tokens.dns }},system:dns,system:dns
+########################################################################
+# Default admission-control limits for containers
+########################################################################
+  - path: /etc/kubernetes/admission-controls/limit-range/limit-range.yaml
+    owner: root
+    content: |
+      apiVersion: v1beta3
+      kind: LimitRange
+      metadata:
+        name: limits
+      spec:
+        limits:
+          - type: Container
+            default:
+              cpu: 100m
+  - path: /etc/hosts
+    owner: root
+    content: |
+      127.0.0.1 kubernetes-master kubernetes-master
+      127.0.0.1 localhost
+  # Add 'myhostname' to the 'hosts:' section of nsswitch.conf to
+  # enable local resolution of the node's own hostname.
+  - path: /etc/nsswitch.conf
+    owner: root
+    content: |
+      # /etc/nsswitch.conf:
+
+      passwd:      files usrfiles
+      shadow:      files usrfiles
+      group:       files usrfiles
+
+      hosts:       files usrfiles dns myhostname
+      networks:    files usrfiles dns
+
+      services:    files usrfiles
+      protocols:   files usrfiles
+      rpc:         files usrfiles
+
+      ethers:      files
+      netmasks:    files
+      netgroup:    files
+      bootparams:  files
+      automount:   files
+      aliases:     files
+coreos:
+  etcd2:
+    discovery: {{ etcd_discovery_url }}
+    name: {{ etcd.addr }}
+    initial-advertise-peer-urls: http://{{ etcd.peer_addr }}:2380
+    # listen on both the official ports and the legacy ports
+    # legacy ports can be omitted if your application doesn't depend on them
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    advertise-client-urls: http://{{ etcd.addr }}:2379,http://{{ etcd.addr }}:4001
+    listen-peer-urls: http://0.0.0.0:2380,http://0.0.0.0:7001
+    data_dir: /var/lib/etcd
+    http_read_timeout: 86400 
+    snapshot: true
+  fleet:
+    public_ip: {{ fleet.public_ip }}
+    etcd_servers: http://127.0.0.1:2379
+    metadata: role=etcd,kubernetes=master
+  flannel:
+    interface: {{ flannel.interface }}
+  units:
+    - name: etcd2.service
+      command: start
+    - name: etcd-waiter.service
+      command: start
+      content: |
+        [Unit]
+        Description=etcd waiter
+        Wants=network-online.target
+        Wants=etcd2.service
+        After=etcd2.service
+        After=network-online.target
+        Before=flanneld.service
+
+        [Service]
+        ExecStartPre=/usr/bin/chmod +x /opt/bin/waiter.sh
+        ExecStart=/usr/bin/bash /opt/bin/waiter.sh
+        RemainAfterExit=true
+        Type=oneshot
+    - name: flanneld.service
+      drop-ins:
+      - name: 50-network-config.conf
+        content: |
+          [Unit]
+          Requires=etcd2.service
+          [Service]
+          ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config  '{"Network":"10.244.0.0/16", "Backend": {"Type": "vxlan"}}'
+      command: start    
+    - name: fleet.service
+      command: start
+  update:
+    group: {{ coreos.update_group }}
+    reboot-strategy: {{ kubernetes.master.reboot_strategy }}

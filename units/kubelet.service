@@ -1,0 +1,30 @@
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Wants=kube-install.service
+After=kube-install.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+EnvironmentFile=/etc/environment
+WorkingDirectory=/
+ExecStart=/opt/bin/kubelet \
+          --address=0.0.0.0 \
+          --port=10250 \
+          --hostname_override=%H \
+          --api_servers=https://${KUBERNETES_MASTER_IP}:${KUBERNETES_MASTER_SECURE_PORT} \
+          --cloud_provider=${KUBERNETES_CLOUD_PROVIDER} \
+          --allow_privileged=False \
+          --cluster_dns=${KUBERNETES_CLUSTER_DNS} \
+          --cluster_domain=${KUBERNETES_CLUSTER_DOMAIN} \
+          --logtostderr=true \
+          --v=2 \
+          --config=/etc/kubernetes/manifests/ \
+          --healthz_bind_address=0.0.0.0 \
+          --healthz_port=10248 
+Restart=always
+RestartSec=10
+
+[X-Fleet]
+Global=true
+MachineMetadata=kubernetes=node

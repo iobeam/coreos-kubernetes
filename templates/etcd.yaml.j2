@@ -1,0 +1,31 @@
+#cloud-config
+
+---
+users: {{ users }}
+ssh_authorized_keys: {{ ssh_authorized_keys }}
+
+coreos:
+  etcd2:
+    discovery: {{ etcd_discovery_url }}
+    name: {{ etcd.addr }}
+    # listen on both the official ports and the legacy ports
+    # legacy ports can be omitted if your application doesn't depend on them
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    advertise-client-urls: http://{{ etcd.addr }}:2379,http://{{ etcd.addr }}:4001
+    initial-advertise-peer-urls: http://{{ etcd.peer_addr }}:2380
+    listen-peer-urls: http://0.0.0.0:2380,http://0.0.0.0:7001
+    data_dir: /var/lib/etcd
+    http_read_timeout: 86400 
+    snapshot: true
+  fleet:
+    public_ip: {{ fleet.public_ip }}
+    etcd_servers: http://127.0.0.1:4001
+    metadata: role=etcd
+  units:
+    - name: etcd2.service
+      command: start
+    - name: fleet.service
+      command: start
+  update:
+    group: {{ coreos.update_group }}
+    reboot-strategy: {{ etcd.reboot_strategy }}

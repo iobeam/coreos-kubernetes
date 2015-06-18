@@ -1,0 +1,26 @@
+[Unit]
+Description=Kubernetes scheduler
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Wants=kube-install.service
+After=kube-install.service
+Requires=kube-apiserver.service
+After=kube-apiserver.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+EnvironmentFile=/etc/kubernetes/install-environment
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill kube-scheduler
+ExecStartPre=-/usr/bin/docker rm kube-scheduler
+ExecStart=/usr/bin/docker run --rm --net=host --name kube-scheduler \
+                          gcr.io/google_containers/kube-scheduler:${KUBERNETES_SCHEDULER_DOCKER_TAG} \
+                          /usr/local/bin/kube-scheduler \
+                          --master=127.0.0.1:8080 \
+                          --v=2                          
+ExecStop=/usr/bin/docker stop kube-scheduler
+Restart=always
+RestartSec=10
+
+[X-Fleet]
+MachineOf=kube-apiserver.service
+MachineMetadata=kubernetes=master

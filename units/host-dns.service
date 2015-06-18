@@ -1,0 +1,24 @@
+[Unit]
+Description=Add Kubernetes cluster DNS to host
+Requires=kube-install.service
+After=kube-install.service
+Requires=kube-proxy.service
+After=kube-proxy.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+ExecStartPre=-/usr/bin/mkdir -p /etc/systemd/resolved.conf.d
+ExecStartPost=/usr/bin/systemctl restart systemd-resolved
+ExecStart=/usr/bin/sh -c '/usr/bin/printf "[Resolve]\nDNS=${KUBERNETES_CLUSTER_DNS}\n" > /etc/systemd/resolved.conf.d/kubernetes.conf'
+ExecStop=-/usr/bin/rm -f /etc/systemd/resolved.conf.d/kubernetes.conf
+ExecStopPost=/usr/bin/systemctl restart systemd-resolved
+RemainAfterExit=yes
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+Global=true
+MachineMetadata=kubernetes=node
+

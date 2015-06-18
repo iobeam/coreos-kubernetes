@@ -1,0 +1,81 @@
+---
+
+#######################################################
+# Default configuration values for CoreOS cloud config.
+########################################################
+
+domain: mydomain.com
+dest_dir: /tmp
+master_dest_dir: '{{ dest_dir }}'
+node_dest_dir: '{{ dest_dir }}'
+etcd_node_dest_dir: '{{ dest_dir }}'
+
+coreos:
+  update_group: stable
+
+etcd:
+  count: 2
+  servers: # Set dynamically by launch script or overridden in sub-config
+  addr: "$private_ipv4"
+  peer_addr: "$private_ipv4"
+  servers: # Set dynamically (aws) or in subconfig (vagrant)  
+  reboot_strategy: "best-effort"
+  
+flannel:
+  interface: eth0
+  
+fleet:
+  extra_metadata: "" # labels a node with extra metadata (optional)
+  public_ip: "$public_ipv4"
+
+# Add a private Docker registry
+docker:
+  registry: {{ DOCKER_REGISTRY }}
+  registry_auth_token: {{ DOCKER_REGISTRY_AUTH_TOKEN }}
+  registry_email: {{ DOCKER_REGISTRY_EMAIL }}
+  
+kubernetes:
+  version: {{ KUBERNETES_VERSION }}
+  log_level: 2
+  secure_port: 6443
+  insecure_port: 8080
+  master_ip: &KUBERNETES_MASTER_IP 172.17.8.101
+  api_servers: !join [*KUBERNETES_MASTER_IP, ":8080" ]
+  kubelet_hostname_override: "$private_ipv4"
+  cluster_dns: {{ KUBERNETES_CLUSTER_DNS }} # Fixed IP set in DNS resource config. Use when running SkyDNS in pod.
+  cluster_domain: {{ KUBERNETES_CLUSTER_DOMAIN }}
+  service_cluster_ip_range: {{ KUBERNETES_SERVICE_CLUSTER_IP_RANGE }}
+  cloud_provider: ""
+  aws_access_key_id: {{ KUBERNETES_AWS_ACCESS_KEY_ID }}
+  aws_secret_access_key: {{ KUBERNETES_AWS_SECRET_ACCESS_KEY }}
+  node:
+    count: 3
+    reboot_strategy: "off"
+    # See subconfig
+  master:
+    count: 1
+    reboot_strategy: "best-effort"    
+    # See subconfig
+  tokens:
+    # Tokens used by Kubernetes services to authenticate with the
+    # apiserver (master). Tokens are genarated anew for each
+    # cloud config.
+    kubelet: {{ 32 | kube_token }}
+    kube_proxy: {{ 32 | kube_token }}
+    scheduler: {{ 32 | kube_token }}
+    controller_manager: {{ 32 | kube_token }}
+    logging: {{ 32 | kube_token }}
+    monitoring: {{ 32 | kube_token }}
+    dns: {{ 32 | kube_token }}
+
+# Add users here:
+users:
+  - name: kube
+    groups:
+      - sudo
+      - docker
+      - wheel
+    # - Add keys here:
+    #ssh-authorized-keys:
+    #  - kube-key
+ 

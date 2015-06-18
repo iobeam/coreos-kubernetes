@@ -1,0 +1,17 @@
+---
+
+kubernetes:
+  master_ip: &KUBERNETES_MASTER_IP 172.17.8.101
+  api_servers: !join [*KUBERNETES_MASTER_IP, ":8080" ]
+  cloud_provider: "" # vagrant - currently requires Salt stack on master to work
+  kubelet_hostname_override: "$public_ipv4"
+    
+etcd:
+  count: 0 # Only master runs etcd
+  servers: !join [ "http://", *KUBERNETES_MASTER_IP, ":2379" ]
+  addr: "$public_ipv4"
+  peer_addr: "$public_ipv4"
+  
+flannel:
+  interface: eth1
+  

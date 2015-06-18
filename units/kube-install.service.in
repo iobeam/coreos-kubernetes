@@ -1,0 +1,59 @@
+[Unit]
+Description=Install Kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/etc/environment
+EnvironmentFile=/etc/kubernetes/environment
+ExecStartPre=-/usr/bin/mkdir -p /opt/bin
+ExecStartPre=-/usr/bin/mkdir -p /srv/kubernetes
+ExecStartPre=-/usr/bin/mkdir -p /etc/kubernetes
+ExecStartPre=-/usr/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=-/usr/bin/mkdir -p /var/lib/kubelet
+ExecStartPre=-/usr/bin/mkdir -p /usr/share/oem/google
+ExecStartPre=/usr/bin/bash -c 'echo "KUBERNETES_VERSION=__KUBERNETES_VERSION__" > /etc/kubernetes/install-environment'
+ExecStartPre=/usr/bin/wget -O /tmp/kubernetes.tar.gz https://storage.googleapis.com/kubernetes-release/release/__KUBERNETES_VERSION__/kubernetes.tar.gz
+ExecStartPre=/usr/bin/tar -C /var -zxf /tmp/kubernetes.tar.gz
+ExecStartPre=/usr/bin/tar -C /var -zxf /var/kubernetes/server/kubernetes-salt.tar.gz
+ExecStartPre=/usr/bin/tar -C /var -zxf /var/kubernetes/server/kubernetes-server-linux-amd64.tar.gz
+ExecStartPre=/usr/bin/cp /var/kubernetes/server/bin/kubectl /opt/bin/
+ExecStartPre=/usr/bin/cp /var/kubernetes/server/bin/kubelet /opt/bin/
+ExecStartPre=/usr/bin/cp /var/kubernetes/server/bin/kube-proxy /opt/bin/
+
+# Use a patched version of kubelet to fix for safe_format_and_mount,
+# which is normally in a path that is write-protected on CoreOS.
+ExecStartPre=/usr/bin/wget -O /opt/bin/kubelet https://s3.amazonaws.com/kubelet/kubelet-__KUBERNETES_VERSION__
+ExecStartPre=/usr/bin/chmod a+rx /opt/bin/kubectl
+ExecStartPre=/usr/bin/chmod o+rx /opt/bin/kubelet
+ExecStart=/bin/bash -c " \
+  cd /var/kubernetes; \
+  SALT=saltbase/salt; \
+  if [ ${KUBERNETES_MASTER} = 'true' ]; then \
+    docker load -i server/bin/kube-apiserver.tar; \
+    docker load -i server/bin/kube-scheduler.tar; \
+    docker load -i server/bin/kube-controller-manager.tar; \
+    echo KUBERNETES_APISERVER_DOCKER_TAG=`cat server/bin/kube-apiserver.docker_tag` >> /etc/kubernetes/install-environment; \
+    echo KUBERNETES_CONTROLLER_MANAGER_DOCKER_TAG=`cat server/bin/kube-controller-manager.docker_tag` >> /etc/kubernetes/install-environment; \
+    echo KUBERNETES_SCHEDULER_DOCKER_TAG=`cat server/bin/kube-scheduler.docker_tag` >> /etc/kubernetes/install-environment; \
+    mkdir -p /etc/kubernetes/addons/dns /etc/kubernetes/addons/fluentd-elasticsearch /etc/kubernetes/addons/cluster-monitoring/influxdb; \
+    sed -e 's|/usr/local/bin/kubectl|/opt/bin/kubectl|' $SALT/kube-addons/kube-addons.sh > /etc/kubernetes/kube-addons.sh; \
+    sed -e 's|/usr/local/bin/kubectl|/opt/bin/kubectl|' $SALT/kube-addons/kube-addon-update.sh > /etc/kubernetes/kube-addon-update.sh; \
+    chmod +x /etc/kubernetes/kube-addon*.sh; \
+    sed -e 's/{{.*dns_server.*}}/'${KUBERNETES_CLUSTER_DNS}'/g' $SALT/kube-addons/dns/skydns-svc.yaml.in > /etc/kubernetes/addons/dns/skydns-svc.yaml; \
+    sed -e 's/{{.*dns_domain.*}}/'${KUBERNETES_CLUSTER_DOMAIN}'/g;s/{{.*dns_replicas.*}}/1/g' $SALT/kube-addons/dns/skydns-rc.yaml.in > /etc/kubernetes/addons/dns/skydns-rc.yaml; \
+    cp $SALT/kube-addons/fluentd-elasticsearch/*.yaml /etc/kubernetes/addons/fluentd-elasticsearch/; \
+    groupadd kube-cert; \
+    $SALT/generate-cert/make-ca-cert.sh ${COREOS_PRIVATE_IPV4}; \
+  else \
+    cp $SALT/fluentd-es/fluentd-es.yaml /etc/kubernetes/manifests/; \
+    cp $SALT/helpers/safe_format_and_mount /usr/share/oem/google; chmod 755 /usr/share/oem/google/safe_format_and_mount; \
+  fi; \
+  rm -rf /var/kubernetes /tmp/kubernetes.tar.gz;"
+RemainAfterExit=yes
+Type=oneshot
+
+[X-Fleet]
+Global=true
+MachineMetadata=kubernetes=master
+MachineMetadata=kubernetes=node

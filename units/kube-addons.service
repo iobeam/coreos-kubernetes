@@ -1,0 +1,14 @@
+[Unit]
+Description=Kubernetes Addon Object Manager
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Wants=kube-install.service
+After=kube-install.service
+
+[Service]
+ExecStart=/etc/kubernetes/kube-addons.sh
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+MachineMetadata=kubernetes=master

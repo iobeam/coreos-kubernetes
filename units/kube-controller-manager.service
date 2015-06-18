@@ -1,0 +1,32 @@
+[Unit]
+Description=Kubernetes controller manager
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Wants=kube-install.service
+After=kube-install.service
+Requires=kube-apiserver.service
+After=kube-apiserver.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+EnvironmentFile=/etc/kubernetes/install-environment
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill kube-controller-manager
+ExecStartPre=-/usr/bin/docker rm kube-controller-manager
+ExecStart=/usr/bin/docker run --rm --net=host --name kube-controller-manager \
+                          -v /etc/ssl:/etc/ssl:ro \
+                          -v /var/ssl:/var/ssl:ro \
+                          -v /srv/kubernetes:/srv/kubernetes:ro \
+                          gcr.io/google_containers/kube-controller-manager:${KUBERNETES_CONTROLLER_MANAGER_DOCKER_TAG} \
+                          /usr/local/bin/kube-controller-manager \
+                          --master=127.0.0.1:8080 \
+                          --cluster_name=kubernetes \
+                          --cloud_provider=${KUBERNETES_CLOUD_PROVIDER} \
+                          --service_account_private_key_file=/srv/kubernetes/server.key \
+                          --v=2                          
+ExecStop=/usr/bin/docker stop kube-controller-manager
+Restart=always
+RestartSec=10
+
+[X-Fleet]
+MachineOf=kube-apiserver.service
+MachineMetadata=kubernetes=master

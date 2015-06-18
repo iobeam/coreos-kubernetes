@@ -1,0 +1,44 @@
+[Unit]
+Description=Kubernetes API server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Requires=kube-install.service
+After=kube-install.service
+Requires=etcd2.service
+After=etcd2.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+EnvironmentFile=/etc/kubernetes/install-environment
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill kube-apiserver
+ExecStartPre=-/usr/bin/docker rm kube-apiserver
+ExecStart=/usr/bin/docker run --rm --net=host --name kube-apiserver \
+                          -v /etc/ssl:/etc/ssl:ro \
+                          -v /var/ssl:/var/ssl:ro \
+                          -v /srv/kubernetes:/srv/kubernetes:ro \
+                          -p ${KUBERNETES_MASTER_SECURE_PORT}:${KUBERNETES_MASTER_SECURE_PORT} \
+                          -p ${KUBERNETES_MASTER_INSECURE_PORT}:8080 \
+                          -p 7080:7080 \
+                          -e AWS_CREDENTIAL_FILE=/.aws/credentials \
+                          gcr.io/google_containers/kube-apiserver:${KUBERNETES_APISERVER_DOCKER_TAG} \
+                          /usr/local/bin/kube-apiserver \
+                          --address=0.0.0.0 \
+                          --etcd-servers=http://127.0.0.1:2379 \
+                          --cloud-provider=${KUBERNETES_CLOUD_PROVIDER}  \
+                          --admission-control=NamespaceLifecycle,NamespaceAutoProvision,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota \
+                          --service-cluster-ip-range=${KUBERNETES_SERVICE_CLUSTER_IP_RANGE} \
+                          --cluster-name=kubernetes \
+                          --tls_cert_file=/srv/kubernetes/server.cert \
+                          --tls_private_key_file=/srv/kubernetes/server.key \
+                          --secure-port=${KUBERNETES_MASTER_SECURE_PORT} \
+                          --token_auth_file=/srv/kubernetes/known_tokens.csv \
+                          --public-address-override=${COREOS_PRIVATE_IPV4} \
+                          --v=2 \
+                          --allow_privileged=False
+                          
+ExecStop=/usr/bin/docker stop kube-apiserver
+Restart=always
+RestartSec=10
+
+[X-Fleet]
+MachineMetadata=kubernetes=master

@@ -1,0 +1,22 @@
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Wants=kube-install.service
+After=kube-install.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+ExecStart=/opt/bin/kube-proxy \
+  --master=https://${KUBERNETES_MASTER_IP}:${KUBERNETES_MASTER_SECURE_PORT} \
+  --kubeconfig=/var/lib/kube-proxy/kubeconfig \
+  --v=2 \
+  --logtostderr=true
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+Global=true
+MachineMetadata=kubernetes=node

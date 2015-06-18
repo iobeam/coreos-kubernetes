@@ -1,0 +1,25 @@
+# This unit allows the Kubernetes master to access cluster services
+# using their cluster IPs. Useful for running a HTTP(s) proxy on the
+# master that allows access to some services.
+
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+Wants=kube-install.service
+After=kube-install.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/environment
+ExecStart=/opt/bin/kube-proxy \
+  --master=http://127.0.0.1:${KUBERNETES_MASTER_INSECURE_PORT} \
+  --v=2 \
+  --logtostderr=true
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+Global=true
+MachineMetadata=kubernetes=master

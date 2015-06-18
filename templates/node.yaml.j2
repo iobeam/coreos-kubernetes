@@ -1,0 +1,148 @@
+#cloud-config
+
+users: {{ users }}
+{% if ssh_authorized_keys %}
+ssh_authorized_keys: {{ ssh_authorized_keys }}
+{% endif %}
+
+write_files:
+# Write etcdctl configuration that allows etcdctl to work
+# although not running local etcd service:
+  - path: /etc/profile.d/etcdctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure etcdctl to work with our etcd servers set above
+      export ETCDCTL_PEERS="{{ etcd.servers }}"
+  - path: /etc/profile.d/fleetctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure fleetctl to work with our etcd servers set above
+      export FLEETCTL_ENDPOINT="http://{{ kubernetes.master_ip }}:2379"
+      export FLEETCTL_EXPERIMENTAL_API=true
+  {% if docker.registry -%}
+  - path: /.dockercfg
+    content: |
+      {
+        "https://{{ docker.registry }}": {
+          "auth": "{{ docker.registry_auth_token }}",
+          "email": "{{ docker.email }}"
+        }
+      }
+  {%- endif %}
+  - path: /etc/kubernetes/environment
+    owner: root
+    content: |
+      KUBERNETES_CLOUD_PROVIDER={{ kubernetes.cloud_provider }}
+      KUBERNETES_MASTER=false
+      KUBERNETES_MASTER_IP={{ kubernetes.master_ip }}
+      KUBERNETES_MASTER_INSECURE_PORT={{ kubernetes.insecure_port }}
+      KUBERNETES_MASTER_SECURE_PORT={{ kubernetes.secure_port }}      
+      KUBERNETES_API_SERVERS={{ kubernetes.api_servers }}
+      KUBERNETES_CLUSTER_DOMAIN={{ kubernetes.cluster_domain }}
+      KUBERNETES_CLUSTER_DNS={{ kubernetes.cluster_dns }}
+  # Add auth file for kubelet
+  - path: /var/lib/kubelet/kubernetes_auth
+    owner: root
+    content: |
+      {"BearerToken": "{{ kubernetes.tokens.kubelet }}", "Insecure": true }
+  # Kube proxy config file
+  - path: /var/lib/kube-proxy/kubeconfig
+    owner: root
+    content: |
+      apiVersion: v1
+      kind: Config
+      users:
+      - name: kube-proxy
+        user:
+          token: {{ kubernetes.tokens.kube_proxy }}
+      clusters:
+      - name: local
+        cluster:
+          insecure-skip-tls-verify: true
+      contexts:
+      - context:
+          cluster: local
+          user: kube-proxy
+        name: service-account-context
+      current-context: service-account-context
+  # Add the master to /etc/hosts for name resolution without DNS.
+  - path: /etc/hosts
+    owner: root
+    content: |
+      {{ kubernetes.master_ip }} kubernetes-master kubernetes-master
+      127.0.0.1 localhost
+  # Add 'myhostname' to the 'hosts:' section of nsswitch.conf to
+  # enable local resolution of the node's own hostname. This is
+  # important for Vagrant, since it can't resolve hostnames via DNS.
+  - path: /etc/nsswitch.conf
+    owner: root
+    content: |
+      # /etc/nsswitch.conf:
+
+      passwd:      files usrfiles
+      shadow:      files usrfiles
+      group:       files usrfiles
+
+      hosts:       files usrfiles dns myhostname
+      networks:    files usrfiles dns
+
+      services:    files usrfiles
+      protocols:   files usrfiles
+      rpc:         files usrfiles
+
+      ethers:      files
+      netmasks:    files
+      netgroup:    files
+      bootparams:  files
+      automount:   files
+      aliases:     files
+coreos:
+  fleet:
+    public_ip: {{ fleet.public_ip }}
+    metadata: role=worker,kubernetes=node{{ fleet.extra_metadata | default("") }}
+    etcd_servers: {{ etcd.servers }}
+  flannel:
+    etcd_endpoints: {{ etcd.servers }}
+    interface: {{ flannel.interface }}
+  units:
+{%- for volume in kubernetes.node.volumes %}
+  {% set device_name = volume.device | regex_replace("/dev/sd([a-z])", "xvd\\1") -%}
+  {% set fs_type = volume.fs_type | default("ext4") -%}
+# On AWS, device is remapped from {{ volume.device }} to /dev/{{ device_name }}
+    - name: format-ephemeral-dev-{{ device_name }}.service
+      command: start
+      content: |
+        [Unit]
+        Description=Formats the ephemeral drive
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/sbin/wipefs -f /dev/{{ device_name }}
+        ExecStart=/usr/sbin/mkfs -t {{ fs_type }} /dev/{{ device_name }}
+    - name: {{ volume.mount_point | regex_replace("/", "-") | regex_replace("^-", "") }}.mount
+      command: start
+      content: |
+        [Unit]
+        Description=Mount ephemeral to {{ volume.mount_point }}
+        Requires=format-ephemeral-dev-{{ device_name }}.service
+        After=format-ephemeral-dev-{{ device_name }}.service
+        Before=docker.service
+        [Mount]
+        What=/dev/{{ device_name }}
+        Where={{ volume.mount_point }}
+        Type={{ fs_type }}
+{%- endfor %}
+    - name: etcd.service
+      mask: true
+    - name: etcd2.service
+      mask: true
+    - name: flanneld.service
+      command: start
+    - name: fleet.service
+      command: start
+  update:
+    group: {{ coreos.update_group }}
+    reboot-strategy: {{ kubernetes.node.reboot_strategy }}
+    

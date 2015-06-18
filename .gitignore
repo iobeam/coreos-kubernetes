@@ -1,0 +1,7 @@
+/kubectl
+/fleetctl
+/common.pyc
+/.vagrant
+/units/kube-install.service
+*~
+
