@@ -49,15 +49,17 @@ If the `-t` option is omitted the target defaults to Vagrant. The
 actual cloud-configs ends up in `/tmp/etcd.yaml`, `/tmp/master.yaml`
 and `/tmp/node.yaml`.
 
-Now launch two etcd instances, one master, and any number of nodes
-using the cloud configs. The master and the nodes need to be
-associated with a AWS security role with full EC2 access policy (or
+Now launch two etcd instances, and one master. Note the private IP
+addresses of those instances and manually update the `etcd_servers` in
+the `node.yaml` cloud config. Then launch any number of nodes using
+the updated cloud config. Note that the master and the nodes need to
+be associated with a AWS security role with full EC2 access policy (or
 use the policy files from the official Kubernetes project).
 
 ## Installing and Running Kubernetes ##
 
 When a CoreOS cluster is running, either on Vagrant or AWS, install
-Kubernetes on the CoreOS cluster using Fleet, run:
+Kubernetes on the CoreOS cluster using Fleet:
 
     ./kube-up.sh [ MASTER_IP ]
 

@@ -2,16 +2,12 @@
 
 subnet_id: subnet-3a5f5f7c
 image: ami-79ad4712
-node_key: 440-labs
   
 kubernetes:
   master_ip: &KUBERNETES_MASTER_IP 127.0.0.1 # Overridden by script
   cloud_provider: aws
-  master:
-    instance_type: t2.small
   node:
     count: 4
-    instance_type: m4.xlarge
     volumes:
       # Add volume for docker images and container storage
       - device: /dev/sdb
@@ -20,6 +16,5 @@ kubernetes:
         mount_point: /var/lib/docker
    
 etcd:
-  instance_type: t2.small
   addr: "$private_ipv4"
   peer_addr: "$private_ipv4"
