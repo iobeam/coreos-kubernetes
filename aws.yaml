@@ -1,8 +1,5 @@
 ---
 
-subnet_id: subnet-3a5f5f7c
-image: ami-79ad4712
-  
 kubernetes:
   master_ip: &KUBERNETES_MASTER_IP 127.0.0.1 # Overridden by script
   cloud_provider: aws
