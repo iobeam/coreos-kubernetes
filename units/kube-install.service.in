@@ -21,7 +21,7 @@ ExecStartPre=/usr/bin/cp /var/kubernetes/server/bin/kubectl /opt/bin/
 ExecStartPre=/usr/bin/cp /var/kubernetes/server/bin/kubelet /opt/bin/
 ExecStartPre=/usr/bin/cp /var/kubernetes/server/bin/kube-proxy /opt/bin/
 
-# Use a patched version of kubelet to fix for safe_format_and_mount,
+# Use a patched version of kubelet to change the path to fix safe_format_and_mount,
 # which is normally in a path that is write-protected on CoreOS.
 ExecStartPre=/usr/bin/wget -O /opt/bin/kubelet https://s3.amazonaws.com/kubelet/kubelet-__KUBERNETES_VERSION__
 ExecStartPre=/usr/bin/chmod a+rx /opt/bin/kubectl
@@ -43,6 +43,7 @@ ExecStart=/bin/bash -c " \
     sed -e 's/{{.*dns_server.*}}/'${KUBERNETES_CLUSTER_DNS}'/g' $SALT/kube-addons/dns/skydns-svc.yaml.in > /etc/kubernetes/addons/dns/skydns-svc.yaml; \
     sed -e 's/{{.*dns_domain.*}}/'${KUBERNETES_CLUSTER_DOMAIN}'/g;s/{{.*dns_replicas.*}}/1/g' $SALT/kube-addons/dns/skydns-rc.yaml.in > /etc/kubernetes/addons/dns/skydns-rc.yaml; \
     cp $SALT/kube-addons/fluentd-elasticsearch/*.yaml /etc/kubernetes/addons/fluentd-elasticsearch/; \
+    cp $SALT/kube-addons/cluster-monitoring/influxdb/*.yaml /etc/kubernetes/addons/cluster-monitoring/; \
     groupadd kube-cert; \
     $SALT/generate-cert/make-ca-cert.sh ${COREOS_PRIVATE_IPV4}; \
   else \

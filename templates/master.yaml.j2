@@ -63,10 +63,18 @@ write_files:
           - type: Container
             default:
               cpu: 100m
+  # Add some nodes to /etc/hosts. This is a hack for the master to be able
+  # to resolve the nodes using DNS. TODO: Should make this list dynamicially
+  # generated.
   - path: /etc/hosts
     owner: root
     content: |
       127.0.0.1 kubernetes-master kubernetes-master
+      172.17.8.102 node-01
+      172.17.8.103 node-02
+      172.17.8.104 node-03
+      172.17.8.105 node-04
+      172.17.8.106 node-05
       127.0.0.1 localhost
   # Add 'myhostname' to the 'hosts:' section of nsswitch.conf to
   # enable local resolution of the node's own hostname.

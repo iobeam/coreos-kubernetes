@@ -26,7 +26,7 @@ You can run these cloud-configs with Vagrant. Simply do:
 
     vagrant up
 
-and this will launch one master and one node where only the master
+and this will launch one master and two nodes where only the master
 runs etcd. Set a different number of Kubernetes nodes via the
 `NUM_NODES` environment variable, e.g.,:
 

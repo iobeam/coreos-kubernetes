@@ -1,3 +1,5 @@
+# Allows CoreOS hosts to resolve Kubernetes cluster services using DNS.
+# Enable this unit only after the Kubernetes cluster DNS is running.
 [Unit]
 Description=Add Kubernetes cluster DNS to host
 Requires=kube-install.service

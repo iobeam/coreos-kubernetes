@@ -5,7 +5,7 @@
 VAGRANTFILE_API_VERSION = "2"
 
 $coreos_update_channel = "stable"
-NUM_NODES = ENV['NUM_NODES'] || 1
+NUM_NODES = ENV['NUM_NODES'] || 2
 $coreos_name_prefix = "node"
 $coreos_vm_gui = false
 
