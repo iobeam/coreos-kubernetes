@@ -1,5 +1,7 @@
 ---
 
+target: vagrant
+
 kubernetes:
   master_ip: &KUBERNETES_MASTER_IP 172.17.8.101
   api_servers: !join [*KUBERNETES_MASTER_IP, ":8080" ]
